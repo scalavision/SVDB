@@ -4,7 +4,7 @@ def readVCFLine(line):
     if line[0] == "#":
         return(None)
 
-    variation   = line.rstrip().split("\t")
+    variation   = line.strip().split("\t")
     event_type=""
     chrA=variation[0].replace("chr","").replace("Chr","").replace("CHR","");
     posA=int(variation[1]);
@@ -58,7 +58,7 @@ def readVCFLine(line):
         elif "SVLEN" in description:
             posB=posA+int(description["SVLEN"]);
         else:
-            print line
+            posB=posA
         #sometimes the fermikit intra chromosomal events are inverted i.e the end pos is a lower position than the start pos
         if(posB < posA):
             tmp=posB
@@ -69,35 +69,30 @@ def readVCFLine(line):
         if "<" in variation[4] and ">" in variation[4]:
             if "DUP" in event_type:
                 event_type="DUP"
-            if "INS" in event_type:
-                event_type="BND"
         else:
             if "SVTYPE" in description:
                 event_type=description["SVTYPE"];
-                if "INS" in event_type:
-                    event_type = "BND"
     #if the variant is given as a breakpoint, it is stored as a precise variant in the db
     else:
         B=variation[4];
-
         B=re.split("[],[]",B);
-        for string in B:
-            if string.count(":"):
-                lst=string.split(":");
-                chrB=lst[0].replace("chr","").replace("Chr","").replace("CHR","")
-                posB=int(lst[1]);
-                if chrA > chrB:
-                    chrT = chrA
-                    chrA = chrB
-                    chrB = chrT
+        chr_and_pos=B[1]
+        chrB=":".join(chr_and_pos.split(":")[:-1]).replace("chr","").replace("Chr","").replace("CHR","")
+        posB=int(chr_and_pos.split(":")[-1])
+        if chrA > chrB:
+           chrT = chrA
+           chrA = chrB
+           chrB = chrT
                         
-                    tmpPos=posB
-                    posB=posA
-                    posA=tmpPos
-                elif chrA == chrB and posA > posB:
-                    tmpPos=posB
-                    posB=posA
-                    posA=tmpPos                   
+           tmpPos=posB
+           posB=posA
+           posA=tmpPos
+
+        elif chrA == chrB and posA > posB:
+             tmpPos=posB
+             posB=posA
+             posA=tmpPos                   
                 
         event_type="BND"
+
     return( chrA, posA, chrB, posB,event_type,description,format);
