@@ -34,34 +34,6 @@ def determine_set_tag(priority_order,files):
                 filtered.append("filterIn" + sample)  
         return("-".join(filtered))
 
-def get_CIPOS_CEND(query_variant):
-    ciA_query=[0,0]
-    CIPOS=retrieve_key(query_variant[-1],"CIPOS")
-    if CIPOS:
-        CIPOS=CIPOS.split(",")
-        if len(CIPOS) == 2:
-            ciA_query=[int(CIPOS[0]),int(CIPOS[1])]
-        else:
-            ciA_query=[int(CIPOS[0]),int(CIPOS[0])]
-
-    ciB_query=[0,0]
-    CIPOS=retrieve_key(query_variant[-1],"CIEND")
-    if CIPOS:
-        CIPOS=CIPOS.split(",")
-        if len(CIPOS) == 2:
-            ciB_query=[int(CIPOS[0]),int(CIPOS[1])]
-        else:
-            ciB_query=[int(CIPOS[0]),int(CIPOS[0])]
-
-    return(ciA_query,ciB_query)
-
-def find_ci(query_variant,db_variant):
-
-    ciA_query,ciB_query=get_CIPOS_CEND(query_variant)
-    ciA_db,ciB_db=get_CIPOS_CEND(db_variant)
-
-    return(ciA_query,ciB_query,ciA_db,ciB_db)
-
 #merge the csg fields of bnd variants
 def merge_csq(info,csq):
     var_csq=info.split("CSQ=")[-1].split(";")[0]
@@ -82,13 +54,12 @@ def merge_csq(info,csq):
     return(info)
 
 def sort_format_field(line,samples,sample_order,sample_print_order,priority_order,files,representing_file,args):
-    #print sample_order
     tmp_format=[]
     var_samples=[]
-    #sort the format fields
     format_columns={}
     format_entries=[]
     format_entry_length=[]
+
     if not args.same_order:
         for input_file in priority_order:
             if not input_file in files:
@@ -141,13 +112,10 @@ def sort_format_field(line,samples,sample_order,sample_print_order,priority_orde
                     j+=1
                             
                 line.append(":".join(format_string))
-                #print sample
-                #print line
+
     #generate a union of the info fields
     info_union=[]
     tags_in_info=[]
-    #print "TEST"
-    #print priority_order
     for input_file in priority_order:
 
         if not input_file in files:
@@ -168,7 +136,6 @@ def sort_format_field(line,samples,sample_order,sample_print_order,priority_orde
     return(line)
 
 def merge(variants,samples,sample_order,sample_print_order,priority_order,args):
-    ci=args.ci
     overlap_param=args.overlap
     bnd_distance=args.bnd_distance
     no_intra=args.no_intra
@@ -190,8 +157,7 @@ def merge(variants,samples,sample_order,sample_print_order,priority_order,args):
             for j in range(i+1,len(variants[chrA])):
                 if j in analysed_variants:
                     continue
-                #print "i:{}".format(i)
-                #print "j:{}".format(j)
+
                 #if the pass_only option is chosen, only variants marked PASS will be merged
                 if pass_only:
                     filter_tag=variants[chrA][i][-1].split("\t")[6]
@@ -217,21 +183,16 @@ def merge(variants,samples,sample_order,sample_print_order,priority_order,args):
                 if no_intra and variants[chrA][i][-3] == variants[chrA][j][-3]:
                     continue
 
-                overlap = False
-                if not ci:
-                    overlap=overlap_module.variant_overlap(chrA,variants[chrA][i][0],variants[chrA][i][2],variants[chrA][i][3],variants[chrA][j][2],variants[chrA][j][3],overlap_param,bnd_distance)
-                else:
-                    ciA_query,ciB_query,ciA_db,ciB_db=find_ci(variants[chrA][i],variants[chrA][j])
-                    overlap=overlap_module.ci_overlap(variants[chrA][i][2],variants[chrA][i][3],ciA_query,ciB_query,variants[chrA][j][2],variants[chrA][j][3],ciA_db,ciB_db)
+                overlap,match=overlap_module.variant_overlap(chrA,variants[chrA][i][0],variants[chrA][i][2],variants[chrA][i][3],variants[chrA][j][2],variants[chrA][j][3],overlap_param,bnd_distance)
 
-                if overlap:
+                if match:
                     #add similar variants to the merge list and remove them
                     if args.priority:
                         files[variants[chrA][j][-3]] = variants[chrA][j][-1]
                         merge.append(variants[chrA][j][-1].split("\t")[2].replace(";","_")+":"+variants[chrA][j][-3])
                     else:
-                        files[ variants[chrA][j][-3].replace(".vcf","").split("/")[-1] ] = variants[chrA][j][-1]
-                        merge.append(variants[chrA][j][-1].split("\t")[2].replace(";","_")+":"+variants[chrA][j][-3].replace(".vcf","").split("/")[-1])
+                        files[ variants[chrA][j][-3].split(".vcf")[0].split("/")[-1] ] = variants[chrA][j][-1]
+                        merge.append(variants[chrA][j][-1].split("\t")[2].replace(";","_")+":"+variants[chrA][j][-3].split(".vcf")[0].split("/")[-1])
 
                     if variants[chrA][i][0] != chrA and "CSQ=" in variants[chrA][j][-1]:
                         info=variants[chrA][j][-1].split("\t")[7]
@@ -249,12 +210,12 @@ def merge(variants,samples,sample_order,sample_print_order,priority_order,args):
                 files[variants[chrA][i][-3]] = "\t".join(line)
                 representing_file = variants[chrA][i][-3]
             else:
-                files[ variants[chrA][i][-3].replace(".vcf","").split("/")[-1] ] = "\t".join(line)
-                representing_file = variants[chrA][i][-3].replace(".vcf","").split("/")[-1]
+                files[ variants[chrA][i][-3].split(".vcf")[0].split("/")[-1] ] = "\t".join(line)
+                representing_file = variants[chrA][i][-3].split(".vcf")[0].split("/")[-1]
             line=sort_format_field(line,samples,sample_order,sample_print_order,priority_order,files, representing_file,args)
             if merge and not args.notag:
                 line[7] += ";VARID=" + "|".join(merge)
-
+                line[2] += ":{}|".format( variants[chrA][i][-3].split(".vcf")[0].split("/")[-1] ) + "|".join(merge)
             if not args.notag:
                 set_tag=determine_set_tag(priority_order,files)
                 line[7] += ";set={}".format(set_tag);              

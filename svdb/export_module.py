@@ -52,6 +52,7 @@ def db_header(args):
     headerString+="##ALT=<ID=DEL,Description=\"Deletion\">\n";
     headerString+="##ALT=<ID=DUP,Description=\"Duplication\">\n";
     headerString+="##ALT=<ID=INV,Description=\"Inversion\">\n";
+    headerString+="##ALT=<ID=INS,Description=\"Insertion\">\n";
     headerString+="##ALT=<ID=BND,Description=\"Break end\">\n";
     headerString+="##INFO=<ID=SVTYPE,Number=1,Type=String,Description=\"Type of structural variant\">\n";
     headerString+="##INFO=<ID=END,Number=1,Type=String,Description=\"End of an intra-chromosomal variant\">\n";
@@ -117,30 +118,30 @@ def vcf_line(cluster,id_tag,sample_IDs):
     vcf_line.append("\t".join(format))
     return( "\t".join(vcf_line) )
 
-def expand_chain(chain,coordinates,chrA,chrB,distance,overlap,ci):
+def expand_chain(chain,coordinates,chrA,chrB,distance,overlap):
     chain_data={}
     for i in range(0,len(chain)):
         variant=chain[i]
         chain_data[i]=[]
 
-        if chrA == chrB and not ci:
-            rows=coordinates[ ( distance >= abs(coordinates[:,1] - variant["posA"])  ) & ( distance >= abs(coordinates[:,2] - variant["posB"])  ) & ( variant["posB"] >=  coordinates[:,1] )  & (coordinates[:,2] >= variant["posB"] ) ]
+        rows=coordinates[ ( distance >= abs(coordinates[:,1] - variant["posA"])  ) & ( distance >= abs(coordinates[:,2] - variant["posB"])  ) ]
 
-        else:
-            rows=coordinates[ ( distance >= abs(coordinates[:,1] - variant["posA"])  ) & ( distance >= abs(coordinates[:,2] - variant["posB"])  ) ]
         candidates= rows[:,0]
         for j in candidates:
 
             var=chain[j]
             similar = False
-            if ci:
-                similar=overlap_module.ci_overlap(variant["posA"],variant["posB"],[variant["ci_A_start"],variant["ci_A_end"]],[variant["ci_B_start"],variant["ci_B_end"]],var["posA"],var["posB"],[0,0],[0,0])
-            elif chrA != chrB:
+            match = False
+            if chrA != chrB:
                 similar=True
+                match=True
+
             else:
-                similar=overlap_module.isSameVariation(variant["posA"],variant["posB"],var["posA"],var["posB"],overlap,distance)
-            if similar:
+                similar,match=overlap_module.isSameVariation(variant["posA"],variant["posB"],var["posA"],var["posB"],overlap,distance)
+
+            if match:
                 chain_data[i].append(j)
+
         chain_data[i]=np.array(chain_data[i])
     return(chain_data)
 
@@ -184,7 +185,7 @@ def fetch_variants(variant,chrA,chrB,c):
 
 def overlap_cluster(c,indexes,variant,chrA,chrB,sample_IDs,args,f,i):
     variant_dictionary,coordinates=fetch_index_variant(c,indexes)
-    similarity_matrix=expand_chain(variant_dictionary,coordinates,chrA,chrB,args.bnd_distance,args.overlap,args.ci)
+    similarity_matrix=expand_chain(variant_dictionary,coordinates,chrA,chrB,args.bnd_distance,args.overlap)
     clusters=cluster_variants(variant_dictionary,similarity_matrix)
     for clustered_variants in clusters:
         clustered_variants[0]["type"]=variant
